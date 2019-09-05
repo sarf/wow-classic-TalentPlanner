@@ -1,3 +1,6 @@
+1.0.2
+    Patched talent prerequisites so it uses the virtual points.
+
 1.0.1
     Forgot to add in apply code, prevent talents from being learnt. Oops!
 

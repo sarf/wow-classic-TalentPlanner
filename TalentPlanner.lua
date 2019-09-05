@@ -46,6 +46,17 @@ function TalentPlanner:PatchTalentAPI()
         c = TalentPlanner:GetPointsSpentInTab(tab)
         return a,b,c,d,e,f,g,h,i,j,k
     end
+    TalentPlanner.hooked["GetTalentPrereqs"] = GetTalentPrereqs
+    GetTalentPrereqs = function(tab, id)
+        local arr = {TalentPlanner.hooked["GetTalentPrereqs"](tab, id)}
+        for i = 1, #arr, 3 do
+            local rank, maxRank = select(5, GetTalentInfo(arr[i], arr[i+1]))
+            if rank == maxRank then
+                arr[i+2] = true
+            end
+        end
+        return unpack(arr)
+    end
     TalentPlanner.hooked["GetTalentInfo"] = GetTalentInfo
     GetTalentInfo = function(tab, id)
         local a,b,c,d,e,f,g,h,i,j,k = TalentPlanner.hooked["GetTalentInfo"](tab, id)
