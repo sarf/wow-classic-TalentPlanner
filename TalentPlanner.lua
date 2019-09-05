@@ -1,5 +1,6 @@
 local TalentPlanner = {}
 TalentPlanner.options = {
+    learningEnabled = true,
     allowVirtualBuild = true, -- allows the planner to remove points actually assigned for planning purposes
     learningEnabled = true,
     assumedLevel = 60
@@ -75,7 +76,11 @@ function TalentPlanner:PatchTalentAPI()
     end
 end
 
-function TalentPlanner:CreateTalentList()
+function TalentPlanner:CreateTalentList(useHooked)
+    local GetTalentInfoFunc = GetTalentInfo
+    if useHooked then
+        GetTalentInfoFunc = function(a, b) return self:CallHookedGlobal("GetTalentInfo", a, b) end
+    end
     local talentList = {}
     for tab = 1, 3 do
         local tabList = {}
@@ -84,9 +89,9 @@ function TalentPlanner:CreateTalentList()
         local reverseTier = {}
         local reverseColumn = {}
         for talent = 1, MAX_NUM_TALENTS or 20 do
-            local name, _, t, c, rank, maxRank = GetTalentInfo(tab, talent)
+            local name, _, t, c, rank, maxRank = GetTalentInfoFunc(tab, talent)
             if not name then break end
-            tierRanks[t] = tierRanks[t] + rank
+            tierRanks[t] = (tierRanks[t] or 0) + rank
             tabRanks = tabRanks + rank
             reverseTier[t] = talent
             reverseColumn[c] = talent
@@ -300,6 +305,32 @@ function TalentPlanner:Print(msg)
     ChatFrame1:AddMessage(self:Colourize("TP", "GREEN") .. ": " .. tostring(msg), 1, 1, 0)
 end
 
+function TalentPlanner:Apply()
+    local talentPoints = self:CallHookedGlobal("UnitCharacterPoints", "player");
+    local queue = self.current
+    if (not self.current.virtual and talentPoints >= 0 or TalentPlanner.options.learningEnabled) and #queue > 0 then
+        local entry = table.remove(queue, 1)
+        local name, _, _, _, rank, maxRank, _, available = self:CallHookedGlobal("GetTalentInfo", entry[1], entry[2])
+        local nameRankStr = name
+        if(maxRank > 1) then nameRankStr = nameRankStr .. " (" .. (rank+1) .. "/" .. maxRank .. ")" end
+        if rank >= maxRank or not available then
+            TalentPlanner:Print("Attempting to learn " .. nameRankStr .. " but it is unlikely to work...")
+        else
+            TalentPlanner:Print("Attempting to learn " .. nameRankStr)
+        end
+        if TalentPlanner.options.learningEnabled then 
+            LearnTalent(entry[1], entry[2])
+            local _, _, _, _, newRank = self:CallHookedGlobal("GetTalentInfo", entry[1], entry[2]);
+            if newRank > rank then
+                local extra = ""
+                if maxRank > 1 then
+                    extra = extra .. string.format(" (%d / %d)", newRank, maxRank)
+                end
+                TalentPlanner:Print("Learnt " .. nameRankStr .. extra)
+            end
+        end
+    end
+end
 
 
 function TalentPlanner:TalentUILoaded()
