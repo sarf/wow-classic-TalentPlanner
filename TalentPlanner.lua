@@ -161,7 +161,7 @@ function TalentPlanner:RemovePointFrom(tab, id)
         -- le sigh
         local talentList = self:CreateTalentList()
         local tabInfo = talentList[tab]
-        local currentTier = tabInfo.reverseTier[id]
+        local currentTier = tabInfo.reverseTier[id] or 0
         local nextTierPoints = tabInfo.tierRanks[currentTier + 1] or 0
         if nextTierPoints > 0 and tabInfo.tierRanks[currentTier] <= 5 then
             return false, "can not remove, there are talents in tiers above"
@@ -399,7 +399,7 @@ TalentPlanner.frame:SetScript("OnEvent", function(frame, ...)
     local event = select(1, ...)
     if type(TalentPlanner[event]) == "function" then TalentPlanner[event](select(2, ...)) end
 end)
-if TalentFrameTalent_OnClick then 
+if TalentFrameTalent_OnClick or IsAddOnLoaded("Blizzard_TalentUI") then 
     TalentPlanner:TalentUILoaded()
 else
     TalentPlanner.frame:RegisterEvent("ADDON_LOADED")

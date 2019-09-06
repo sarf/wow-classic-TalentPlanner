@@ -1,3 +1,6 @@
+1.0.3
+    Fixed currenttier issue (hopefully)
+
 1.0.2
     Patched talent prerequisites so it uses the virtual points.
 
