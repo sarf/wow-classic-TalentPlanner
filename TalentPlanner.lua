@@ -96,23 +96,24 @@ function TalentPlanner:CreateTalentList(useHooked)
     for tab = 1, 3 do
         local tabList = {}
         local tabRanks = 0
+        local tierStructure = {}
+        local reversePosition = {}
         local tierRanks = {}
-        local reverseTier = {}
-        local reverseColumn = {}
         for talent = 1, MAX_NUM_TALENTS or 20 do
             local name, _, t, c, rank, maxRank = GetTalentInfoFunc(tab, talent)
             if not name then break end
             tierRanks[t] = (tierRanks[t] or 0) + rank
             tabRanks = tabRanks + rank
-            reverseTier[t] = talent
-            reverseColumn[c] = talent
+            if not tierStructure[t] then tierStructure[t] = {} end
+            reversePosition[talent] = { t, c}
+            tierStructure[t][c] = talent
             table.insert(tabList, { name = name, tier = c, column = c, rank = rank, maxRank = maxRank })
         end
         tabList.tab = tab
         tabList.ranks = tabRanks
         tabList.tierRanks = tierRanks
-        tabList.reverseTier = reverseTier
-        tabList.reverseColumn = reverseColumn
+        tabList.tierStructure = tierStructure
+        tabList.reversePosition = reversePosition
         table.insert(talentList, tabList)
     end
     return talentList
@@ -161,10 +162,21 @@ function TalentPlanner:RemovePointFrom(tab, id)
         -- le sigh
         local talentList = self:CreateTalentList()
         local tabInfo = talentList[tab]
-        local currentTier = tabInfo.reverseTier[id] or 0
+        local position = tabInfo.reversePosition[id]
+        local currentTier = position[1] or 1
         local nextTierPoints = tabInfo.tierRanks[currentTier + 1] or 0
-        if nextTierPoints > 0 and tabInfo.tierRanks[currentTier] <= 5 then
-            return false, "can not remove, there are talents in tiers above"
+        local accumulatedPointsUpToAndIncluding = 0
+        for i = 1, currentTier do 
+            accumulatedPointsUpToAndIncluding = accumulatedPointsUpToAndIncluding + tabInfo.tierRanks[i]
+        end
+        local accumulatedPointsAbove = 0
+        for i = currentTier + 1, 20 do 
+            local points = tabInfo.tierRanks[i]
+            if not points then break end
+            accumulatedPointsAbove = accumulatedPointsAbove + points
+        end 
+        if accumulatedPointsAbove > 0 and (accumulatedPointsUpToAndIncluding - 1) < (currentTier + 1) * 5 then
+            return false, "can not remove, build would become invalid"
         end
         
         local _, _, t, c, rank, maxRank = self.hooked["GetTalentInfo"](tab, id)

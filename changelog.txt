@@ -1,3 +1,6 @@
+1.0.4
+    Truly fixed current tier issue
+
 1.0.3
     Fixed currenttier issue (hopefully)
 
@@ -6,7 +9,6 @@
 
 1.0.1
     Forgot to add in apply code, prevent talents from being learnt. Oops!
-
 
 1.0
     Released

@@ -19,3 +19,4 @@ Contact info
 ------------
 
 Contact me using the name erispose at wowinterface.com for feedback. When I feel the addon is stable enough, I will publish it there, and maybe elsewhere.
+
