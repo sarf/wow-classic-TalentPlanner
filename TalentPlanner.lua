@@ -1,10 +1,19 @@
 local TalentPlanner = {}
+
+--[[
+
+TODO:
+
+actual character points on TalentFrame
+
+]]--
 TalentPlanner.options = {
     learningEnabled = true,
     allowVirtualBuild = true, -- allows the planner to remove points actually assigned for planning purposes
     learningEnabled = true,
     assumedLevel = 60
 }
+TalentPlanner.data = {}
 TalentPlanner.hooked = {}
 TalentPlanner.current = {}
 TalentPlanner.ui = {}
@@ -38,7 +47,79 @@ function TalentPlanner:PatchTalentButtonIfNeeded(name, parent)
     return virtualRank
 end
 
+function TalentPlanner:SimpleHookCall(globalName, ...)
+    if type(self.hooked[globalName]) == "function" then
+        return self.hooked[globalName](select(1, ...))
+    end
+    return false, globalName .. " was not a hooked function"
+end
+
+function TalentPlanner:SimpleHook(globalName, func)
+    if type(func) ~= "function" then return false, "given function was not, actually, a function but instead " .. type(func) end
+    local globalFunc = _G[globalName]
+    if type(globalFunc) ~= "function" then return false, globalName .. " is not a function" end
+    if self.hooked[globalName] == func then
+        return false, globalName .. " was already hooked the specified function"
+    end
+    if self.hooked[globalName] then return false, globalName .. " was already hooked" end
+    self.hooked[globalName] = globalFunc
+    _G[globalName] = func
+    return true
+end
+
+
 function TalentPlanner:PatchTalentAPI()
+    self:SimpleHook("TalentFrame_OnShow", function(self)
+        TalentPlanner.data.overrideEnabled = true
+        return TalentPlanner:SimpleHookCall("TalentFrame_OnShow", self)
+    end)
+    self:SimpleHook("TalentFrame_OnHide", function(self)
+        TalentPlanner.data.overrideEnabled = false
+        return TalentPlanner:SimpleHookCall("TalentFrame_OnShow", self)
+    end)
+    self:SimpleHook("GetTalentTabInfo", function(tab)
+        local a,b,c,d,e,f,g,h,i,j,k = TalentPlanner:SimpleHookCall("GetTalentTabInfo", tab)
+        if TalentPlanner.data.overrideEnabled then
+            c = TalentPlanner:GetPointsSpentInTab(tab)
+        end
+        return a,b,c,d,e,f,g,h,i,j,k
+    end)
+    self:SimpleHook("GetTalentPrereqs", function(tab, id)
+        local arr = {TalentPlanner.hooked["GetTalentPrereqs"](tab, id)}
+        if TalentPlanner.data.overrideEnabled then
+            for i = 1, #arr, 3 do
+                local rank, maxRank = select(5, GetTalentInfo(arr[i], arr[i+1]))
+                if rank == maxRank then
+                    arr[i+2] = true
+                end
+            end
+        end
+        return unpack(arr)
+    end)
+    TalentPlanner:SimpleHook("GetTalentInfo", function(tab, id)
+        local a,b,c,d,e,f,g,h,i,j,k = TalentPlanner.hooked["GetTalentInfo"](tab, id)
+        --TalentPlanner:Print("GetTalentInfo(" .. tab .. ", ".. id ..") => " .. dumpValue({a,b,c,d,e,f,g,h,i,j,k}, 1, true))
+        if TalentPlanner.data.overrideEnabled and a then
+            if TalentPlanner.current.virtual then
+                e = TalentPlanner:GetQueueTotal(tab, id)
+            else
+                -- non-virtual build means it is based on your current build and is, in fact, possible to apply.
+                e = e + TalentPlanner:GetQueueTotal(tab, id)
+            end
+        end
+        return a,b,c,d,e,f,g,h,i,j,k
+    end)
+
+    TalentPlanner:SimpleHook("UnitCharacterPoints", function(unit)
+        local a,b,c,d,e,f,g,h,i,j,k = TalentPlanner.hooked["UnitCharacterPoints"](unit)
+        if TalentPlanner.data.overrideEnabled then
+            a = TalentPlanner:GetPointsLeft(TalentPlanner.options.assumedLevel)
+        end
+        return a,b,c,d,e,f,g,h,i,j,k
+    end)    
+end
+
+function TalentPlanner:OldPatchTalentAPI()
     local names = {} --{"GetTalentPrereqs"}
     TalentPlanner.hooked["GetTalentTabInfo"] = GetTalentTabInfo
     GetTalentTabInfo = function(tab)

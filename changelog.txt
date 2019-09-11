@@ -1,3 +1,6 @@
+1.0.5
+    Minor updates, hopefully some fixes
+
 1.0.4
     Truly fixed current tier issue
 

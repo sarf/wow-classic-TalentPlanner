@@ -1,6 +1,6 @@
 ## Interface: 11302
 ## Title: TalentPlanner
-## Version: 1.0.4
+## Version: 1.0.5
 ## Author: Sarf
 ## Description: An addon that allows you to plan out your talents.
 ## SavedVariablesPerCharacter: TalentPlanner_Personal
