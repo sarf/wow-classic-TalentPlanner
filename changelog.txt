@@ -1,3 +1,6 @@
+1.1.0
+    Release ready, virtual build disabled for now. Have to click "Start" to start applying!
+
 1.0.5
     Minor updates, hopefully some fixes
 

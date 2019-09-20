@@ -9,8 +9,8 @@ actual character points on TalentFrame
 ]]--
 TalentPlanner.options = {
     learningEnabled = true,
-    allowVirtualBuild = true, -- allows the planner to remove points actually assigned for planning purposes
-    learningEnabled = true,
+    allowVirtualBuild = false, -- allows the planner to remove points actually assigned for planning purposes
+    state = false,
     assumedLevel = 60
 }
 TalentPlanner.data = {}
@@ -67,6 +67,9 @@ function TalentPlanner:SimpleHook(globalName, func)
     return true
 end
 
+function TalentPlanner:ShouldOverride()
+    return TalentPlanner.data.overrideEnabled and TalentPlanner.options.state
+end
 
 function TalentPlanner:PatchTalentAPI()
     self:SimpleHook("TalentFrame_OnShow", function(self)
@@ -75,18 +78,18 @@ function TalentPlanner:PatchTalentAPI()
     end)
     self:SimpleHook("TalentFrame_OnHide", function(self)
         TalentPlanner.data.overrideEnabled = false
-        return TalentPlanner:SimpleHookCall("TalentFrame_OnShow", self)
+        return TalentPlanner:SimpleHookCall("TalentFrame_OnHide", self)
     end)
     self:SimpleHook("GetTalentTabInfo", function(tab)
         local a,b,c,d,e,f,g,h,i,j,k = TalentPlanner:SimpleHookCall("GetTalentTabInfo", tab)
-        if TalentPlanner.data.overrideEnabled then
+        if TalentPlanner:ShouldOverride() then
             c = TalentPlanner:GetPointsSpentInTab(tab)
         end
         return a,b,c,d,e,f,g,h,i,j,k
     end)
     self:SimpleHook("GetTalentPrereqs", function(tab, id)
         local arr = {TalentPlanner.hooked["GetTalentPrereqs"](tab, id)}
-        if TalentPlanner.data.overrideEnabled then
+        if TalentPlanner:ShouldOverride() then
             for i = 1, #arr, 3 do
                 local rank, maxRank = select(5, GetTalentInfo(arr[i], arr[i+1]))
                 if rank == maxRank then
@@ -99,7 +102,7 @@ function TalentPlanner:PatchTalentAPI()
     TalentPlanner:SimpleHook("GetTalentInfo", function(tab, id)
         local a,b,c,d,e,f,g,h,i,j,k = TalentPlanner.hooked["GetTalentInfo"](tab, id)
         --TalentPlanner:Print("GetTalentInfo(" .. tab .. ", ".. id ..") => " .. dumpValue({a,b,c,d,e,f,g,h,i,j,k}, 1, true))
-        if TalentPlanner.data.overrideEnabled and a then
+        if TalentPlanner:ShouldOverride() then
             if TalentPlanner.current.virtual then
                 e = TalentPlanner:GetQueueTotal(tab, id)
             else
@@ -112,60 +115,11 @@ function TalentPlanner:PatchTalentAPI()
 
     TalentPlanner:SimpleHook("UnitCharacterPoints", function(unit)
         local a,b,c,d,e,f,g,h,i,j,k = TalentPlanner.hooked["UnitCharacterPoints"](unit)
-        if TalentPlanner.data.overrideEnabled then
+        if TalentPlanner:ShouldOverride() then
             a = TalentPlanner:GetPointsLeft(TalentPlanner.options.assumedLevel)
         end
         return a,b,c,d,e,f,g,h,i,j,k
     end)    
-end
-
-function TalentPlanner:OldPatchTalentAPI()
-    local names = {} --{"GetTalentPrereqs"}
-    TalentPlanner.hooked["GetTalentTabInfo"] = GetTalentTabInfo
-    GetTalentTabInfo = function(tab)
-        local a,b,c,d,e,f,g,h,i,j,k = TalentPlanner.hooked["GetTalentTabInfo"](tab)
-        c = TalentPlanner:GetPointsSpentInTab(tab)
-        return a,b,c,d,e,f,g,h,i,j,k
-    end
-    TalentPlanner.hooked["GetTalentPrereqs"] = GetTalentPrereqs
-    GetTalentPrereqs = function(tab, id)
-        local arr = {TalentPlanner.hooked["GetTalentPrereqs"](tab, id)}
-        for i = 1, #arr, 3 do
-            local rank, maxRank = select(5, GetTalentInfo(arr[i], arr[i+1]))
-            if rank == maxRank then
-                arr[i+2] = true
-            end
-        end
-        return unpack(arr)
-    end
-    TalentPlanner.hooked["GetTalentInfo"] = GetTalentInfo
-    GetTalentInfo = function(tab, id)
-        local a,b,c,d,e,f,g,h,i,j,k = TalentPlanner.hooked["GetTalentInfo"](tab, id)
-        --TalentPlanner:Print("GetTalentInfo(" .. tab .. ", ".. id ..") => " .. dumpValue({a,b,c,d,e,f,g,h,i,j,k}, 1, true))
-        if a then
-            if TalentPlanner.current.virtual then
-                e = TalentPlanner:GetQueueTotal(tab, id)
-            else
-                -- non-virtual build means it is based on your current build and is, in fact, possible to apply.
-                e = e + TalentPlanner:GetQueueTotal(tab, id)
-            end
-        end
-        return a,b,c,d,e,f,g,h,i,j,k
-    end
-
-    TalentPlanner.hooked["UnitCharacterPoints"] = UnitCharacterPoints
-    UnitCharacterPoints = function(unit)
-        local a,b,c,d,e,f,g,h,i,j,k = TalentPlanner.hooked["UnitCharacterPoints"](unit)
-        a = TalentPlanner:GetPointsLeft(TalentPlanner.options.assumedLevel)
-        return a,b,c,d,e,f,g,h,i,j,k
-    end
-    
-    for k, v in ipairs(names) do
-        if TalentPlanner[v] and not TalentPlanner.hooked[v] then 
-            TalentPlanner.hooked[v] = _G[v]
-            _G[v] = TalentPlanner[v]
-        end
-    end
 end
 
 function TalentPlanner:CreateTalentList(useHooked)
@@ -313,7 +267,7 @@ function TalentPlanner:AddPointIn(tab, id)
 end
 
 function TalentPlanner:TalentFrameTalentButton_OnClick(button, mouseButton)
-    if button:IsEnabled() then
+    if button:IsEnabled() and TalentPlanner:ShouldOverride() then
         local id = button:GetID()
         local tab = PanelTemplates_GetSelectedTab(TalentFrame)
         
@@ -327,8 +281,16 @@ end
 
 function TalentPlanner:Reset()
     local queue = self.current
-    while(#queue > 0) do table.remove(queue, 1) end
-    for k, v in pairs(queue) do queue[k] = nil end
+    if TalentPlanner.options.state then
+        if #self.current > 0 then
+            while(#queue > 0) do table.remove(queue, 1) end
+            for k, v in pairs(queue) do queue[k] = nil end
+        else
+            TalentPlanner.options.state = false
+        end
+    else
+        TalentPlanner.options.state = true
+    end
     TalentFrame_Update()
 end
 
@@ -385,11 +347,16 @@ function TalentPlanner:TalentFrame_Update()
     else
         TalentFrameApplyButton:Disable()
     end
-    if resetState then
-        TalentFrameResetButton:Enable()
+    if TalentPlanner.options.state then
+        if #self.current > 0 then
+            TalentFrameResetButton:SetText("Reset")
+        else
+            TalentFrameResetButton:SetText("Stop")
+        end
     else
-        TalentFrameResetButton:Disable()
+        TalentFrameResetButton:SetText("Start")
     end
+    TalentFrameResetButton:Enable()
 end
 
 function TalentPlanner:Colourize(text, colour)
@@ -456,7 +423,7 @@ function TalentPlanner:TalentUILoaded()
         self.ui.TalentFrameApplyButton = self:CreateButton("TalentFrameApplyButton", "Apply", 45, function() return TalentPlanner:Apply() end)
     end
     if not self.ui.TalentFrameResetButton then
-        self.ui.TalentFrameResetButton = self:CreateButton("TalentFrameResetButton", "Reset", 105, function() return TalentPlanner:Reset() end)
+        self.ui.TalentFrameResetButton = self:CreateButton("TalentFrameResetButton", "Start", 105, function() return TalentPlanner:Reset() end)
     end
 end
 
